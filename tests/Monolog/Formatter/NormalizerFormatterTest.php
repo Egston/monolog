@@ -150,6 +150,49 @@ class NormalizerFormatterTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(@json_encode(array($foo, $bar)), $res);
     }
 
+    public function testArrayInfiniteNesting()
+    {
+        // set up the array recursion
+        $foo = array();
+        $foo[] = &$foo;
+
+        // set an error handler to assert that the error is not raised anymore
+        $that = $this;
+        set_error_handler(function ($level, $message, $file, $line, $context) use ($that) {
+            if (error_reporting() & $level) {
+                restore_error_handler();
+                $that->fail("$message should not be raised");
+            }
+        });
+
+        $formatter = new NormalizerFormatter();
+        $reflMethod = new \ReflectionMethod($formatter, 'normalize');
+        $reflMethod->setAccessible(true);
+        $res = $reflMethod->invoke($formatter, array($foo));
+
+        restore_error_handler();
+
+        $this->assertEquals(array( // $maxNestingLevel = 6
+            0 =>
+                array(
+                    0 =>
+                    array(
+                        0 =>
+                        array(
+                            0 =>
+                            array(
+                                0 =>
+                                array(
+                                    0 => '[array]',
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ), $res
+        );
+    }
+
     public function testIgnoresInvalidTypes()
     {
         // set up the recursion

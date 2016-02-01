@@ -23,13 +23,16 @@ class NormalizerFormatter implements FormatterInterface
     const SIMPLE_DATE = "Y-m-d H:i:s";
 
     protected $dateFormat;
+    protected $maxNestingLevel;
 
     /**
      * @param string $dateFormat The format of the timestamp: one supported by DateTime::format
+     * @param int    $maxNestingLevel
      */
-    public function __construct($dateFormat = null)
+    public function __construct($dateFormat = null, $maxNestingLevel = 6)
     {
         $this->dateFormat = $dateFormat ?: static::SIMPLE_DATE;
+        $this->maxNestingLevel = max($maxNestingLevel, 2);
         if (!function_exists('json_encode')) {
             throw new \RuntimeException('PHP\'s json extension is required to use Monolog\'s NormalizerFormatter');
         }
@@ -55,8 +58,10 @@ class NormalizerFormatter implements FormatterInterface
         return $records;
     }
 
-    protected function normalize($data)
+    protected function normalize($data, $nestingLevel = 0)
     {
+        $nestingLevel++;
+
         if (null === $data || is_scalar($data)) {
             if (is_float($data)) {
                 if (is_infinite($data)) {
@@ -71,6 +76,10 @@ class NormalizerFormatter implements FormatterInterface
         }
 
         if (is_array($data) || $data instanceof \Traversable) {
+            if ($nestingLevel > $this->maxNestingLevel) {
+                return '[array]';
+            }
+
             $normalized = array();
 
             $count = 1;
@@ -79,7 +88,7 @@ class NormalizerFormatter implements FormatterInterface
                     $normalized['...'] = 'Over 1000 items, aborting normalization';
                     break;
                 }
-                $normalized[$key] = $this->normalize($value);
+                $normalized[$key] = $this->normalize($value, $nestingLevel);
             }
 
             return $normalized;
